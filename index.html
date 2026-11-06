@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHRONOS // Daily Architecture OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-4 md:p-8">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header & Live Clock -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold text-white tracking-tight">CHRONOS</h1>
+          <span id="modeBadge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Exam Season</span>
+        </div>
+        <p id="sleepTargetText" class="text-sm text-emerald-400 mt-1">Target: 21:00 Lights Out ➔ 06:00 Wake (5 Complete Cycles)</p>
+      </div>
+      <div class="text-right">
+        <div id="liveClock" class="text-3xl font-mono font-bold text-indigo-400">00:00:00</div>
+        <div id="activePhaseBadge" class="text-xs uppercase tracking-wider text-slate-400 mt-1">Detecting current block...</div>
+      </div>
+    </div>
+
+    <!-- Operating Mode Selector -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2 w-full md:w-auto">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mode:</span>
+        <div class="inline-flex rounded-lg bg-slate-800 p-1 w-full md:w-auto justify-center">
+          <button id="btnExam" onclick="setMode('exam')" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white transition">Exam Season</button>
+          <button id="btnNormal" onclick="setMode('normal')" class="px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">Normal Term</button>
+          <button id="btnBiphasic" onclick="setMode('biphasic')" class="px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">3 AM Peak</button>
+        </div>
+      </div>
+
+      <!-- Contextual Toggles -->
+      <div class="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+        <div id="sportToggleWrapper" class="flex items-center gap-2 opacity-40 pointer-events-none transition">
+          <span class="text-xs text-slate-400">Sport End:</span>
+          <div class="inline-flex rounded-lg bg-slate-800 p-1">
+            <button id="btn430" onclick="setSportEnd('16:30')" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 text-white transition">4:30 PM</button>
+            <button id="btn530" onclick="setSportEnd('17:30')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">5:30 PM</button>
+          </div>
+        </div>
+
+        <div id="biphasicToggleWrapper" class="hidden items-center gap-2 transition">
+          <span class="text-xs text-slate-400">04:15 Block:</span>
+          <div class="inline-flex rounded-lg bg-slate-800 p-1">
+            <button id="btnNap" onclick="setBiphasicType('nap')" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white transition">1-Cycle Nap</button>
+            <button id="btnStudy" onclick="setBiphasicType('study')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">Deep Study</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Tracker + Top 3 Deck -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Timeline (Left 2 Columns) -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="flex justify-between text-xs text-slate-400 mb-2">
+            <span>Daily Execution Progress</span>
+            <span id="progressText">0% Completed</span>
+          </div>
+          <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div id="progressBar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div id="scheduleList" class="space-y-3"></div>
+      </div>
+
+      <!-- Right Column: Top 3 Non-Negotiables & Quick Tools -->
+      <div class="space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 mb-1">Top 3 Non-Negotiables</h2>
+          <p class="text-xs text-slate-400 mb-4">Lock in your primary daily wins.</p>
+          <div id="top3List" class="space-y-2.5"></div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-400 mb-1">System Controls</h2>
+          <button onclick="resetDay()" class="w-full text-xs text-slate-300 hover:text-rose-400 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 rounded-lg py-2.5 transition font-medium">Reset Today's Checkmarks</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Custom Task Edit Modal -->
+  <div id="editModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4">
+      <h3 class="text-lg font-bold text-white">Customize Time Block</h3>
+      <p class="text-xs text-slate-400">Override the default title and notes for this slot.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Title</label>
+          <input type="text" id="modalTitle" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Description / Focus</label>
+          <textarea id="modalDesc" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white transition">Cancel</button>
+        <button onclick="saveModalTask()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = localStorage.getItem('chronos_mode') || 'exam';
+    let sportEnd = localStorage.getItem('chronos_sport_end') || '16:30';
+    let biphasicType = localStorage.getItem('chronos_biphasic_type') || 'nap';
+    let completedTasks = JSON.parse(localStorage.getItem('chronos_completed') || '{}');
+    let customTasks = JSON.parse(localStorage.getItem('chronos_custom_tasks') || '{}');
+    let top3 = JSON.parse(localStorage.getItem('chronos_top3') || '["", "", ""]');
+    let activeModalId = null;
+
+    const baseSchedules = {
+      exam: [
+        { id: 'ex1', start: '06:00', end: '06:30', title: 'Wake & Circadian Anchor', desc: '5 sleep cycles complete. Sunlight + water immediately, zero phone.' },
+        { id: 'ex2', start: '06:30', end: '07:00', title: 'Breakfast & Fuel', desc: 'Slow-release energy before morning exam papers.' },
+        { id: 'ex3', start: '07:00', end: '13:00', title: 'Morning Exam / Study Block', desc: 'High-focus output and paper execution.' },
+        { id: 'ex4', start: '13:00', end: '15:00', title: 'Gym Session & Refuel', desc: 'Physical training & post-workout nutrition.' },
+        { id: 'ex5', start: '15:00', end: '18:30', title: 'Afternoon Deep Work & Coding', desc: 'Active recall, weak-spot review, or Vercel projects.' },
+        { id: 'ex6', start: '18:30', end: '19:15', title: 'Supper & Family Time', desc: 'Consistent evening meal window.' },
+        { id: 'ex7', start: '19:15', end: '20:30', title: 'Light Formula / Summary Review', desc: 'Low-stress review. Hard stop at 20:30.' },
+        { id: 'ex8', start: '20:30', end: '21:00', title: 'Digital Sunset & Bag Prep', desc: 'Screens off. Prepare exam stationery.' },
+        { id: 'ex9', start: '21:00', end: '06:00', title: 'Sleep Architecture (5 Cycles)', desc: 'Asleep by 21:15 ➔ 7.5 hrs deep + REM restoration.' }
+      ],
+      normal: [
+        { id: 'nm1', start: '05:15', end: '05:45', title: 'Wake & Morning Prep', desc: 'Wakes cleanly at end of Cycle 5 (asleep 20:45).' },
+        { id: 'nm2', start: '05:45', end: '06:10', title: 'Breakfast Window', desc: 'Fuel up before leaving for school.' },
+        { id: 'nm3', start: '06:15', end: '07:00', title: 'School Commute', desc: 'Depart at 6:15 AM sharp.' },
+        { id: 'nm4', start: '07:00', end: '10:00', title: 'Morning Lessons (Block 1)', desc: 'Active classroom engagement.' },
+        { id: 'nm5', start: '10:00', end: '10:25', title: 'Morning Tea Break', desc: 'Refuel and hydrate.' },
+        { id: 'nm6', start: '10:25', end: '13:20', title: 'Midday Lessons (Block 2)', desc: 'Lessons conclude at 1:20 PM.' },
+        { id: 'nm7', start: '13:20', end: '14:00', title: 'Lunch & Decompression', desc: 'Transition from classes.' },
+        { id: 'nm8', start: '14:00', end: '15:25', title: 'On-Campus Peak Study Block', desc: '85-min A-Level problem solving.' },
+        { id: 'nm9', start: '15:35', end: 'SPORT_END', title: 'Rugby Practice / Clubs Session', desc: 'Physical training & society commitments.' },
+        { id: 'nm10', start: 'SPORT_END', end: '18:30', title: 'Commute Home, Shower & Free Sprint', desc: 'Coding or project work.' },
+        { id: 'nm11', start: '18:30', end: '19:15', title: 'Supper Window', desc: 'Fixed evening meal block.' },
+        { id: 'nm12', start: '19:15', end: '20:00', title: 'Evening Coding / Review', desc: 'Focused project sprint.' },
+        { id: 'nm13', start: '20:00', end: '20:30', title: 'Digital Sunset & Prep', desc: 'Zero screens after 20:00.' },
+        { id: 'nm14', start: '20:30', end: '05:15', title: 'Sleep Architecture (5 Cycles)', desc: 'Asleep by 20:45 ➔ 7.5 hrs recovery.' }
+      ],
+      biphasic: [
+        { id: 'bp1', start: '21:15', end: '03:00', title: 'Core Sleep Block (4 Cycles)', desc: 'Heavy physical recovery (6 hours).' },
+        { id: 'bp2', start: '03:00', end: '04:15', title: 'Peak Study / Coding Hour', desc: '75 mins of absolute silence and deep focus.' },
+        { id: 'bp3', start: '04:15', end: '05:45', title: 'BIPHASIC_SLOT', desc: 'Adjustable 1-cycle nap or second deep work sprint.' },
+        { id: 'bp4', start: '05:45', end: '06:10', title: 'Breakfast Window', desc: 'Morning fuel.' },
+        { id: 'bp5', start: '06:15', end: '13:20', title: 'School & Classes', desc: 'Standard academic hours.' },
+        { id: 'bp6', start: '13:20', end: '15:35', title: 'Afternoon Rest & Lunch', desc: 'Decompression block.' },
+        { id: 'bp7', start: '15:35', end: '17:30', title: 'Rugby Practice / Training', desc: 'Physical activity.' },
+        { id: 'bp8', start: '18:30', end: '19:15', title: 'Supper Window', desc: 'Fixed evening meal.' },
+        { id: 'bp9', start: '19:15', end: '21:15', title: 'Wind-down & Digital Sunset', desc: 'Transition back to core sleep.' }
+      ]
+    };
+
+    function setMode(mode) {
+      currentMode = mode;
+      localStorage.setItem('chronos_mode', mode);
+      renderUI();
+    }
+
+    function setSportEnd(time) {
+      sportEnd = time;
+      localStorage.setItem('chronos_sport_end', time);
+      renderUI();
+    }
+
+    function setBiphasicType(type) {
+      biphasicType = type;
+      localStorage.setItem('chronos_biphasic_type', type);
+      renderUI();
+    }
+
+    function toggleTask(id) {
+      completedTasks[id] = !completedTasks[id];
+      localStorage.setItem('chronos_completed', JSON.stringify(completedTasks));
+      renderUI();
+    }
+
+    function resetDay() {
+      completedTasks = {};
+      localStorage.setItem('chronos_completed', JSON.stringify(completedTasks));
+      renderUI();
+    }
+
+    function updateTop3(index, val) {
+      top3[index] = val;
+      localStorage.setItem('chronos_top3', JSON.stringify(top3));
+    }
+
+    function openModal(id, defaultTitle, defaultDesc) {
+      activeModalId = id;
+      const custom = customTasks[id] || { title: defaultTitle, desc: defaultDesc };
+      document.getElementById('modalTitle').value = custom.title;
+      document.getElementById('modalDesc').value = custom.desc;
+      document.getElementById('editModal').classList.remove('hidden');
+      document.getElementById('editModal').classList.add('flex');
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.add('hidden');
+      document.getElementById('editModal').classList.remove('flex');
+      activeModalId = null;
+    }
+
+    function saveModalTask() {
+      if (!activeModalId) return;
+      customTasks[activeModalId] = {
+        title: document.getElementById('modalTitle').value,
+        desc: document.getElementById('modalDesc').value
+      };
+      localStorage.setItem('chronos_custom_tasks', JSON.stringify(customTasks));
+      closeModal();
+      renderUI();
+    }
+
+    function timeToMinutes(t) {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function renderUI() {
+      // Buttons styling
+      document.getElementById('btnExam').className = currentMode === 'exam' ? 'px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white transition' : 'px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+      document.getElementById('btnNormal').className = currentMode === 'normal' ? 'px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white transition' : 'px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+      document.getElementById('btnBiphasic').className = currentMode === 'biphasic' ? 'px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white transition' : 'px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+
+      const sportWrapper = document.getElementById('sportToggleWrapper');
+      const biphasicWrapper = document.getElementById('biphasicToggleWrapper');
+
+      if (currentMode === 'normal') {
+        sportWrapper.classList.remove('opacity-40', 'pointer-events-none');
+        biphasicWrapper.classList.add('hidden');
+        biphasicWrapper.classList.remove('flex');
+      } else if (currentMode === 'biphasic') {
+        sportWrapper.classList.add('opacity-40', 'pointer-events-none');
+        biphasicWrapper.classList.remove('hidden');
+        biphasicWrapper.classList.add('flex');
+      } else {
+        sportWrapper.classList.add('opacity-40', 'pointer-events-none');
+        biphasicWrapper.classList.add('hidden');
+        biphasicWrapper.classList.remove('flex');
+      }
+
+      document.getElementById('btn430').className = sportEnd === '16:30' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+      document.getElementById('btn530').className = sportEnd === '17:30' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+
+      document.getElementById('btnNap').className = biphasicType === 'nap' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+      document.getElementById('btnStudy').className = biphasicType === 'study' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+
+      const modeTitles = { exam: 'Exam Season', normal: 'Normal Term', biphasic: '3 AM Peak' };
+      document.getElementById('modeBadge').textContent = modeTitles[currentMode];
+      document.getElementById('sleepTargetText').textContent = currentMode === 'exam' 
+        ? 'Exam Mode: 21:00 Lights Out ➔ 06:00 Wake (7.5 hrs Recovery)' 
+        : currentMode === 'normal' 
+        ? 'Term Mode: 20:30 Lights Out ➔ 05:15 Wake (7.5 hrs Recovery)' 
+        : 'Biphasic Mode: 21:15 Sleep ➔ 03:00 Peak Study + 04:15 Recovery Slot';
+
+      // Render Top 3
+      const top3Container = document.getElementById('top3List');
+      top3Container.innerHTML = '';
+      top3.forEach((val, idx) => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = val;
+        input.placeholder = `Win #${idx + 1} for today...`;
+        input.className = 'w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition';
+        input.oninput = (e) => updateTop3(idx, e.target.value);
+        top3Container.appendChild(input);
+      });
+
+      // Render Schedule
+      const list = document.getElementById('scheduleList');
+      list.innerHTML = '';
+
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+
+      let activeItems = JSON.parse(JSON.stringify(baseSchedules[currentMode]));
+      
+      // Handle dynamic slots
+      activeItems = activeItems.map(item => {
+        if (item.start === 'BIPHASIC_SLOT' || item.end === 'BIPHASIC_SLOT') {
+          if (biphasicType === 'nap') {
+            return { ...item, start: '04:15', end: '05:45', title: '1-Cycle Recovery Nap', desc: '90-minute sleep block before morning school.' };
+          } else {
+            return { ...item, start: '04:15', end: '05:45', title: 'Extended Deep Work Sprint', desc: 'Advanced coding or coding project development.' };
+          }
+        }
+        return item;
+      });
+
+      let doneCount = 0;
+      let activeTitle = 'Off-Hours / Restoration Window';
+
+      activeItems.forEach(item => {
+        const startStr = item.start === 'SPORT_END' ? sportEnd : item.start;
+        const endStr = item.end === 'SPORT_END' ? sportEnd : item.end;
+        const startMins = timeToMinutes(startStr);
+        const endMins = timeToMinutes(endStr);
+
+        let isCurrent = false;
+        if (endMins > startMins) {
+          isCurrent = nowMins >= startMins && nowMins < endMins;
+        } else {
+          isCurrent = nowMins >= startMins || nowMins < endMins;
+        }
+        if (isCurrent) activeTitle = item.title;
+
+        const isDone = !!completedTasks[item.id];
+        if (isDone) doneCount++;
+
+        const custom = customTasks[item.id] || { title: item.title, desc: item.desc };
+
+        const row = document.createElement('div');
+        row.className = `p-4 rounded-xl border transition flex items-start justify-between gap-4 ${
+          isCurrent ? 'bg-indigo-950/40 border-indigo-500/80 ring-1 ring-indigo-500/50 shadow-lg shadow-indigo-950/50' : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+        } ${isDone ? 'opacity-50' : ''}`;
+
+        row.innerHTML = `
+          <div class="flex items-start gap-3.5 flex-1 cursor-pointer" onclick="toggleTask('${item.id}')">
+            <input type="checkbox" ${isDone ? 'checked' : ''} class="mt-1 h-4 w-4 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500 pointer-events-none" />
+            <div class="flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-indigo-300 border border-slate-700/50">${startStr} – ${endStr}</span>
+                <h3 class="font-semibold text-sm ${isDone ? 'line-through text-slate-400' : 'text-white'}">${custom.title}</h3>
+                ${isCurrent ? '<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-pulse">Active Now</span>' : ''}
+              </div>
+              <p class="text-xs text-slate-400 mt-1">${custom.desc}</p>
+            </div>
+          </div>
+          <button onclick="openModal('${item.id}', '${item.title}', '${item.desc}')" class="text-xs text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Customize block">
+            ✎
+          </button>
+        `;
+        list.appendChild(row);
+      });
+
+      const pct = Math.round((doneCount / activeItems.length) * 100);
+      document.getElementById('progressBar').style.width = `${pct}%`;
+      document.getElementById('progressText').textContent = `${pct}% Completed (${doneCount}/${activeItems.length})`;
+      document.getElementById('activePhaseBadge').textContent = `Current: ${activeTitle}`;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toTimeString().split(' ')[0];
+    }
+
+    setInterval(updateClock, 1000);
+    setInterval(renderUI, 30000);
+    updateClock();
+    renderUI();
+  </script>
+</body>
+</html>
